@@ -1,0 +1,7 @@
+make clean
+make
+make install
+
+service up /service/dfa
+service update /service/dfa
+service down dfa
