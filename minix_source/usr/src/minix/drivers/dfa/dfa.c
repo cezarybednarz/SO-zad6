@@ -39,33 +39,14 @@ static ssize_t dfa_read(devminor_t UNUSED(minor), u64_t position,
     endpoint_t endpt, cp_grant_id_t grant, size_t size, int UNUSED(flags),
     cdev_id_t UNUSED(id))
 {
-    u64_t dev_size;
-    char *ptr;
     int ret;
     char answer = 'Y';
     if(!accepting[current_state])
     	answer = 'N';
 
-    /* This is the total size of our device. */
-    dev_size = (u64_t) 4;
-
-    char buf[dev_size];
-    for (size_t i = 0; i < dev_size; i++)
-    	buf[i] = answer;
-
-    printf("dfa_read()\n");
-
-
-    /* Check for EOF, and possibly limit the read size. */
-    if (position >= dev_size)
-        return 0; /* EOF */
-    if (position + size > dev_size)
-        size = (size_t)(dev_size - position);	/* Limit size. */
-
     /* Copy the requested part to the caller. */
-    ptr = buf + (size_t)position;
-    if ((ret = sys_safecopyto(endpt, grant, 0, (vir_bytes) ptr, size)) != OK)
-        return ret;
+    if ((ret = sys_safememset(endpt, grant, 0, answer, size)) != OK)
+    	return ret;
 
     /* Return the number of bytes read. */
     return size;
@@ -75,16 +56,15 @@ static ssize_t dfa_write(devminor_t UNUSED(minor), u64_t position,
 	endpoint_t endpt, cp_grant_id_t grant, size_t size, int UNUSED(flags),
 	cdev_id_t UNUSED(id))
 {
-	char* buf;
+	char buf[UINT16_MAX];
 	int ret;
-	if ((ret = sys_safecopyfrom(endpt, grant, 0, (vir_bytes) buf, size)) != OK)
+	if ((ret = sys_safecopyfrom(endpt, grant, 0, (vir_bytes) buf, size)) != OK) {
 		return ret;
+	}
 
 	for (size_t i = 0; i < size; i++) {
 		current_state = automaton[current_state*A_SIZE + buf[i]];
-		printf("[%d]", (int)buf[i]);
 	}
-	printf("\n");
 
 	return size;
 }
@@ -100,7 +80,7 @@ static int dfa_ioctl(devminor_t UNUSED(minor), unsigned long request, endpoint_t
     	current_state = 0; /* reset to state q_0 */
     	break;
     case DFAIOCADD:
-    	rc = sys_safecopyfrom(endpt, grant, 0, (vir_bytes) buf, 1);
+    	rc = sys_safecopyfrom(endpt, grant, 0, (vir_bytes) buf, 3);
 		if (rc == OK) {
 			int i = buf[0]; /* row */
 			int j = buf[1]; /* column */
@@ -201,15 +181,9 @@ static int sef_cb_init(int type, sef_init_info_t *UNUSED(info))
             /* Restore the state. */
             lu_state_restore();
             do_announce_driver = FALSE;
-            // strncpy(hello_msg, HELLO_MESSAGE, HELLO_LEN);
-            // hello_msg[HELLO_LEN - 1] = 0;
-            printf("[%d] Hey, I'm a new version!\n", current_state);
         break;
 
         case SEF_INIT_RESTART:
-            // strncpy(hello_msg, HELLO_MESSAGE, HELLO_LEN);
-            // hello_msg[HELLO_LEN - 1] = 0;
-            printf("[%d] Hey, I've just been restarted!\n", current_state);
         break;
     }
 
