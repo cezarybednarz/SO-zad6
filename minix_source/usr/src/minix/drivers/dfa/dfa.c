@@ -10,6 +10,8 @@
 
 static ssize_t dfa_read(devminor_t minor, u64_t position, endpoint_t endpt,
     cp_grant_id_t grant, size_t size, int flags, cdev_id_t id);
+static ssize_t dfa_write(devminor_t minor, u64_t position, endpoint_t endpt,
+    cp_grant_id_t grant, size_t size, int flags, cdev_id_t id);
 static int dfa_ioctl(devminor_t minor, unsigned long request, endpoint_t endpt,
     cp_grant_id_t grant, int flags, endpoint_t user_endpt, cdev_id_t id);
 
@@ -23,6 +25,7 @@ static int lu_state_restore(void);
 static struct chardriver dfa_tab =
 {
 	.cdr_read	= dfa_read,
+	.cdr_write  = dfa_write,
     .cdr_ioctl  = dfa_ioctl
 };
 
@@ -66,6 +69,24 @@ static ssize_t dfa_read(devminor_t UNUSED(minor), u64_t position,
 
     /* Return the number of bytes read. */
     return size;
+}
+
+static ssize_t dfa_write(devminor_t UNUSED(minor), u64_t position,
+	endpoint_t endpt, cp_grant_id_t grant, size_t size, int UNUSED(flags),
+	cdev_id_t UNUSED(id))
+{
+	char* buf;
+	int ret;
+	if ((ret = sys_safecopyfrom(endpt, grant, 0, (vir_bytes) buf, size)) != OK)
+		return ret;
+
+	for (size_t i = 0; i < size; i++) {
+		current_state = automaton[current_state*A_SIZE + buf[i]];
+		printf("[%d]", (int)buf[i]);
+	}
+	printf("\n");
+
+	return size;
 }
 
 static int dfa_ioctl(devminor_t UNUSED(minor), unsigned long request, endpoint_t endpt,
