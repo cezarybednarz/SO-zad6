@@ -74,11 +74,12 @@ static int dfa_ioctl(devminor_t UNUSED(minor), unsigned long request, endpoint_t
     cp_grant_id_t grant, int UNUSED(flags), endpoint_t user_endpt, cdev_id_t UNUSED(id))
 {
     int rc;
-    char buf[3];
+    unsigned char buf[3];
 
     switch(request) {
     case DFAIOCRESET:
     	current_state = 0; /* reset to state q_0 */
+    	rc = OK;
     	break;
     case DFAIOCADD:
     	rc = sys_safecopyfrom(endpt, grant, 0, (vir_bytes) buf, 3);
@@ -111,8 +112,8 @@ static int sef_cb_lu_state_save(int UNUSED(state)) {
     /* Save the state. */
 	ds_publish_u32("initialized", initialized, DSF_OVERWRITE);
     ds_publish_u32("current_state", current_state, DSF_OVERWRITE);
-    ds_publish_str("automaton", automaton, DSF_OVERWRITE);
-    ds_publish_str("accepting", accepting, DSF_OVERWRITE);
+    ds_publish_mem("automaton", automaton, sizeof(char) * (A_SIZE*A_SIZE + 1), DSF_OVERWRITE);
+    ds_publish_mem("accepting", accepting, sizeof(char) * (A_SIZE + 1), DSF_OVERWRITE);
 
     return OK;
 }
@@ -129,12 +130,13 @@ static int lu_state_restore() {
     ds_delete_u32("current_state");
     current_state = (int)value;
 
-    ds_retrieve_str("automaton", automaton, A_SIZE*A_SIZE + 1);
-    ds_delete_str("automaton");
+    size_t aut_size = sizeof(char) * (A_SIZE*A_SIZE + 1);
+    ds_retrieve_mem("automaton", automaton, &aut_size);
+    ds_delete_mem("automaton");
 
-    ds_retrieve_str("accepting", accepting, A_SIZE + 1);
-    ds_delete_str("accepting");
-
+    size_t acc_size = sizeof(char) * (A_SIZE + 1);
+    ds_retrieve_mem("accepting", accepting, &acc_size);
+    ds_delete_mem("accepting");
 
     return OK;
 }
@@ -176,14 +178,14 @@ void init_arrays() {
 
 static int sef_cb_init(int type, sef_init_info_t *UNUSED(info))
 {
-    /* Initialize the hello driver. */
+    /* Initialize the dfa driver. */
     int do_announce_driver = TRUE;
 
     switch(type) {
         case SEF_INIT_FRESH:
             /* Restore the state. */
-			lu_state_restore();
-			do_announce_driver = FALSE;
+			//lu_state_restore();
+			//do_announce_driver = FALSE;
 			init_arrays();
         break;
 
@@ -195,6 +197,10 @@ static int sef_cb_init(int type, sef_init_info_t *UNUSED(info))
         break;
 
         case SEF_INIT_RESTART:
+        	/* Restore the state. */
+			//lu_state_restore();
+			//do_announce_driver = FALSE;
+			//init_arrays();
         break;
     }
 
