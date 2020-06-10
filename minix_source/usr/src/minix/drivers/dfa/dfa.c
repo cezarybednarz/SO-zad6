@@ -31,9 +31,9 @@ static struct chardriver dfa_tab =
 
 /* State variable to save hello message. */
 #define A_SIZE 256
-static char automaton[A_SIZE*A_SIZE + 1];
-static char accepting[A_SIZE + 1];
-static char current_state = 0;
+static unsigned char automaton[A_SIZE*A_SIZE + 1];
+static unsigned char accepting[A_SIZE + 1];
+static unsigned char current_state = 0;
 static int initialized = 0;
 
 static ssize_t dfa_read(devminor_t UNUSED(minor), u64_t position,
@@ -57,7 +57,7 @@ static ssize_t dfa_write(devminor_t UNUSED(minor), u64_t position,
 	endpoint_t endpt, cp_grant_id_t grant, size_t size, int UNUSED(flags),
 	cdev_id_t UNUSED(id))
 {
-	char buf[UINT16_MAX];
+	unsigned char buf[UINT16_MAX];
 	int ret;
 	if ((ret = sys_safecopyfrom(endpt, grant, 0, (vir_bytes) buf, size)) != OK) {
 		return ret;
@@ -183,9 +183,6 @@ static int sef_cb_init(int type, sef_init_info_t *UNUSED(info))
 
     switch(type) {
         case SEF_INIT_FRESH:
-            /* Restore the state. */
-			//lu_state_restore();
-			//do_announce_driver = FALSE;
 			init_arrays();
         break;
 
@@ -197,10 +194,6 @@ static int sef_cb_init(int type, sef_init_info_t *UNUSED(info))
         break;
 
         case SEF_INIT_RESTART:
-        	/* Restore the state. */
-			//lu_state_restore();
-			//do_announce_driver = FALSE;
-			//init_arrays();
         break;
     }
 
