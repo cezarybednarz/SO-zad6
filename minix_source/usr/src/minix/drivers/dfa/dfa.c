@@ -34,6 +34,7 @@ static struct chardriver dfa_tab =
 static char automaton[A_SIZE*A_SIZE + 1];
 static char accepting[A_SIZE + 1];
 static char current_state = 0;
+static int initialized = 0;
 
 static ssize_t dfa_read(devminor_t UNUSED(minor), u64_t position,
     endpoint_t endpt, cp_grant_id_t grant, size_t size, int UNUSED(flags),
@@ -108,6 +109,7 @@ static int dfa_ioctl(devminor_t UNUSED(minor), unsigned long request, endpoint_t
 
 static int sef_cb_lu_state_save(int UNUSED(state)) {
     /* Save the state. */
+	ds_publish_u32("initialized", initialized, DSF_OVERWRITE);
     ds_publish_u32("current_state", current_state, DSF_OVERWRITE);
     ds_publish_str("automaton", automaton, DSF_OVERWRITE);
     ds_publish_str("accepting", accepting, DSF_OVERWRITE);
@@ -118,6 +120,10 @@ static int sef_cb_lu_state_save(int UNUSED(state)) {
 static int lu_state_restore() {
     /* Restore the state. */
     u32_t value;
+
+    ds_retrieve_u32("initialized", &value);
+    ds_delete_u32("initialized");
+    initialized = (int)value;
 
     ds_retrieve_u32("current_state", &value);
     ds_delete_u32("current_state");
@@ -153,6 +159,10 @@ static void sef_local_startup()
 }
 
 void init_arrays() {
+	if (initialized) { /* already initialized */
+		return;
+	}
+	initialized = 1;
 	for (size_t i = 0; i < A_SIZE; i++) {
 		accepting[i] = 0;
 		for (size_t j = 0; j < A_SIZE; j++){
@@ -169,18 +179,19 @@ static int sef_cb_init(int type, sef_init_info_t *UNUSED(info))
     /* Initialize the hello driver. */
     int do_announce_driver = TRUE;
 
-
-	init_arrays();
-
     switch(type) {
         case SEF_INIT_FRESH:
-            init_arrays();
+            /* Restore the state. */
+			lu_state_restore();
+			do_announce_driver = FALSE;
+			init_arrays();
         break;
 
         case SEF_INIT_LU:
             /* Restore the state. */
             lu_state_restore();
             do_announce_driver = FALSE;
+        	init_arrays();
         break;
 
         case SEF_INIT_RESTART:
